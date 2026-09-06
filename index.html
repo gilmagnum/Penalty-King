@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>פנדל לילה — בעיטות עונשין</title>
+<title>מלך הפנדלים · arcAId</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -42,11 +42,16 @@
     border:1px solid rgba(255,255,255,0.08); border-radius:16px; padding:10px 14px;
     box-shadow:0 10px 24px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
   }
-  .cell{ display:flex; flex-direction:column; align-items:center; gap:3px; min-width:64px; }
+  .cell{ display:flex; flex-direction:column; align-items:center; gap:3px; min-width:64px; position:relative; }
   .cell-label{ font-size:11px; color:var(--muted); font-weight:500; }
   .cell-value{ font-size:24px; font-weight:900; color:var(--gold-2); letter-spacing:0.5px; text-shadow:0 0 14px rgba(240,168,58,0.35); font-variant-numeric:tabular-nums; }
   #timer.low-time{ color:var(--crimson); text-shadow:0 0 14px rgba(214,69,69,0.6); animation:timerPulse .6s ease-in-out infinite; }
   @keyframes timerPulse{ 0%,100%{ transform:scale(1);} 50%{ transform:scale(1.12);} }
+  /* time bonus — the seconds that were added have to be visible the moment they land */
+  #timer.time-gain{ color:#4fd6a0; text-shadow:0 0 16px rgba(79,214,160,0.65); }
+  .gain-pop{ position:absolute; left:50%; top:-6px; transform:translateX(-50%); font-size:14px; font-weight:900;
+             color:#4fd6a0; white-space:nowrap; pointer-events:none; animation:gainPop 1.1s ease-out forwards; }
+  @keyframes gainPop{ 0%{ opacity:0; transform:translate(-50%,8px);} 20%{ opacity:1;} 100%{ opacity:0; transform:translate(-50%,-24px);} }
 
   .streak-banner{ text-align:center; font-size:13px; font-weight:700; color:var(--gold-2); min-height:18px; opacity:0; transform:translateY(-4px); transition:opacity .25s ease, transform .25s ease; }
   .streak-banner.show{ opacity:1; transform:translateY(0); }
@@ -229,6 +234,17 @@
 <style>
   .lb-home{ align-self:center; font-size:12.5px; color:var(--muted); text-decoration:none; }
   .lb-home:hover{ color:var(--ink); }
+
+/* ===== arcaide-theme: light chrome around the pitch ===== */
+html[data-arcade-theme="light"]{
+  --ink:#1b2540; --muted:#5a6a8c;
+}
+html[data-arcade-theme="light"] body{ background:#e9eef7; color:#1b2540; }
+html[data-arcade-theme="light"] .scoreboard{ background:linear-gradient(180deg,#ffffff,#eef2fa); border-color:rgba(31,43,61,.12); box-shadow:0 8px 20px rgba(31,43,61,.12) }
+html[data-arcade-theme="light"] .hint{ background:rgba(31,43,61,.05); border-color:rgba(31,43,61,.08) }
+html[data-arcade-theme="light"] .icon-btn{ background:rgba(31,43,61,.06); border-color:rgba(31,43,61,.14); color:#1b2540 }
+html[data-arcade-theme="light"] .icon-btn:hover{ background:rgba(31,43,61,.12) }
+html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#ffffff,#eef2fa); border-color:rgba(31,43,61,.12) }
 </style>
 <!-- arcaide-pwa: installable to the home screen -->
 <link rel="manifest" href="manifest.webmanifest">
@@ -239,7 +255,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="פנדלים">
+<meta name="apple-mobile-web-app-title" content="מלך הפנדלים">
 </head>
 <body>
 
@@ -295,12 +311,6 @@
 
     <div class="hint">⚽ יש לך 30 שניות לצבור כמה שיותר ניקוד. גרור מהכדור לכיוון השער כדי לבעוט, ושים לב לבונוסים הצפים בתוך השער — כולל תוספת זמן ⏱️!</div>
 
-    <div class="actions">
-      <button class="icon-btn" id="soundBtn">🔊 צליל</button>
-      <button class="icon-btn" id="btnScores">🏆 טבלת שיאים</button>
-      <button class="icon-btn" id="resetBtn">איפוס שיא</button>
-      <a class="lb-home" href="https://gilmagnum.github.io/games/">← כל המשחקים</a>
-    </div>
   </div>
 
   <div id="confettiLayer"></div>
@@ -331,8 +341,8 @@
   const state = {
     score: 0, timeLeft: ROUND_SECONDS, streak: 0,
     bestStreak: storedBestStreak, highscore: storedHigh,
-    busy: false, dragging: false, muted: false,
-    bonus: null, over: false, started: false, timerHandle: null, locked: true, doubleSpawnedThisRound: false
+    busy: false, dragging: false, muted: false, paused: false,
+    bonus: null, shotBonus: null, over: false, started: false, timerHandle: null, locked: true, doubleSpawnedThisRound: false
   };
 
   const arena = document.getElementById('arena');
@@ -350,8 +360,7 @@
   const timerEl = document.getElementById('timer');
   const streakBanner = document.getElementById('streakBanner');
   const crowdEl = document.getElementById('crowd');
-  const soundBtn = document.getElementById('soundBtn');
-  const resetBtn = document.getElementById('resetBtn');
+  const soundBtn = { textContent: '', addEventListener: function(){} };   // arcaide-bar: moved to the shared bar
   const overModal = document.getElementById('overModal');
   const finalScoreEl = document.getElementById('finalScore');
   const finalStreakEl = document.getElementById('finalStreak');
@@ -392,11 +401,26 @@
   }
   renderTimer();
 
+  // visible proof that the time bonus landed: a floating "+10ש'" over the clock
+  function flashTimeGain(seconds){
+    const cell = timerEl.parentElement;
+    if (cell){
+      const pop = document.createElement('div');
+      pop.className = 'gain-pop';
+      pop.textContent = '+' + seconds + 'ש\'';
+      cell.appendChild(pop);
+      setTimeout(() => pop.remove(), 1200);
+    }
+    timerEl.classList.add('time-gain');
+    setTimeout(() => timerEl.classList.remove('time-gain'), 1000);
+  }
+
   function startTimerIfNeeded(){
     if (state.started || state.over) return;
     state.started = true;
     scheduleGuaranteedDouble();
     state.timerHandle = setInterval(() => {
+      if (state.paused) return;          // arcaide-pause
       state.timeLeft -= 1;
       if (state.timeLeft <= 5 && state.timeLeft > 0){
         playLowTimeTick();
@@ -575,6 +599,7 @@
       if (state.bonus.el) state.bonus.el.remove();
     }
     state.bonus = null;
+    state.shotBonus = null;
   }
   function spawnBonus(forcedType){
     const type = forcedType || pickBonusType();
@@ -599,14 +624,17 @@
     state.bonus = { type, xPct, yPct, el, expireTimer, timeAmount };
   }
   // the jackpot double-points bonus is guaranteed exactly once per round, timed to land in the closing stretch
+  function spawnGuaranteedDouble(){
+    if (state.over || state.timeUp) return;
+    // never swap the token while a ball is in the air — the shot was aimed at the old one
+    if (state.busy){ state.doubleScheduleHandle = setTimeout(spawnGuaranteedDouble, 350); return; }
+    clearBonus();
+    spawnBonus(DOUBLE_BONUS);
+  }
   function scheduleGuaranteedDouble(){
     const delayFrac = 0.68 + Math.random()*0.22; // 68%-90% into the round — late, but leaves time to react
     const delayMs = ROUND_SECONDS * 1000 * delayFrac;
-    state.doubleScheduleHandle = setTimeout(() => {
-      if (state.over || state.timeUp) return;
-      clearBonus();
-      spawnBonus(DOUBLE_BONUS);
-    }, delayMs);
+    state.doubleScheduleHandle = setTimeout(spawnGuaranteedDouble, delayMs);
   }
   // ordinary bonuses appear unpredictably — not tied to rounds, can show up mid-turn too
   setInterval(() => {
@@ -724,6 +752,14 @@
     keeperXPct = Math.max(16, Math.min(78, keeperXPct));
     keeperYPct = Math.max(4, Math.min(30, keeperYPct));
 
+    // freeze the token this shot was aimed at: while the ball is in the air it must not
+    // expire or be replaced, otherwise a bonus you actually hit is silently lost
+    state.shotBonus = state.bonus;
+    if (state.shotBonus && state.shotBonus.expireTimer){
+      clearTimeout(state.shotBonus.expireTimer);
+      state.shotBonus.expireTimer = null;
+    }
+
     const duration = Math.max(420, 780 - power*3.4);
     const diveDelay = duration * 0.20;
 
@@ -802,17 +838,24 @@
       state.streak++;
       if (state.streak > state.bestStreak) state.bestStreak = state.streak;
 
-      // bonus hit-test
-      if (state.bonus){
-        const bx = state.bonus.xPct/100*a.width, by = state.bonus.yPct/100*a.height;
+      // bonus hit-test — against the token as it was when the ball was struck
+      const shotBonus = state.shotBonus || state.bonus;
+      if (shotBonus){
+        const bx = shotBonus.xPct/100*a.width, by = shotBonus.yPct/100*a.height;
         const bdist = Math.hypot(targetX-bx, targetY-by);
-        const hitRadius = a.width*0.085;
+        const hitRadius = a.width*0.095;
         if (bdist < hitRadius){
-          const type = state.bonus.type;
+          const type = shotBonus.type;
           let label = type.label;
           switch(type.key){
             case 'bonusPoints': state.score += 3; break;
-            case 'extraTime': state.timeLeft = Math.min(60, state.timeLeft + state.bonus.timeAmount); renderTimer(); label = 'תוספת זמן +' + state.bonus.timeAmount + ' שניות ⏱'; break;
+            case 'extraTime': {
+              const add = shotBonus.timeAmount || 5;
+              state.timeLeft = Math.min(60, state.timeLeft + add);
+              renderTimer(); flashTimeGain(add);
+              label = 'תוספת זמן +' + add + ' שניות ⏱';
+              break;
+            }
             case 'doublePoints': state.score = state.score * 2; break;
             case 'minusPoints': state.score = Math.max(0, state.score-3); break;
             case 'gameOver': forceGameOver = true; break;
@@ -841,6 +884,17 @@
       else if (outcome === 'bar'){ showMessage('פגיעה בקורה! 🥅', 'var(--crimson)'); playPost(); flashWoodwork(); vibrate(30); triggerRecoil(); }
       else if (outcome === 'post'){ showMessage('פגיעה בעמוד! 🥅', 'var(--crimson)'); playPost(); flashWoodwork(); vibrate(30); triggerRecoil(); }
       else { showMessage('החוצה! ❌', 'var(--crimson)'); playMiss(); vibrate(25); }
+    }
+
+    // the shot is over: release the frozen token and give it a fresh lifespan
+    if (state.shotBonus){
+      if (state.bonus === state.shotBonus && !state.bonus.expireTimer){
+        const held = state.bonus;
+        held.expireTimer = setTimeout(() => {
+          if (state.bonus === held) clearBonus();
+        }, 2200 + Math.random()*2000);
+      }
+      state.shotBonus = null;
     }
 
     scoreEl.textContent = state.score;
@@ -883,7 +937,7 @@
     spawnConfetti();
     vibrate([20,40,20,40,60]);
 
-    // ArcAIde global leaderboard — prompts for a name when the run makes the top 10
+    // arcAId global leaderboard — prompts for a name when the run makes the top 10
     if (window.Leaderboard) {
       setTimeout(function () {
         Leaderboard.gameOver(state.score, { streak: state.bestStreak });
@@ -891,7 +945,11 @@
     }
   }
 
-  playAgainBtn.addEventListener('click', () => {
+  function restartRound() {
+    if (state.timerHandle) clearInterval(state.timerHandle);
+    if (state.doubleScheduleHandle) clearTimeout(state.doubleScheduleHandle);
+    clearBonus();
+    state.busy = false;
     state.score = 0; state.streak = 0; state.over = false;
     state.timeLeft = ROUND_SECONDS; state.started = false; state.timeUp = false;
     state.finalWhistlePlayed = false; state.locked = true; state.doubleSpawnedThisRound = false;
@@ -901,14 +959,21 @@
     overModal.classList.remove('show');
     countdownVeil.classList.remove('hidden');
     runCountdown();
-  });
+  }
+  playAgainBtn.addEventListener('click', restartRound);
 
-  // ArcAIde global leaderboard
+  // arcAId global leaderboard + shared control bar
   if (window.Leaderboard) {
     Leaderboard.init({ game: 'penalty-king', title: 'מלך הפנדלים', scoreLabel: 'נקודות' });
-    document.getElementById('btnScores').addEventListener('click', () => Leaderboard.show());
-  } else {
-    document.getElementById('btnScores').style.display = 'none';
+  }
+  if (window.Arcade) {
+    Arcade.controls({
+      onPause:   function () { state.paused = true; },
+      onResume:  function () { state.paused = false; },
+      onRestart: function () { state.paused = false; restartRound(); },
+      onMute:    function (m) { state.muted = m; },
+      theme: true
+    });
   }
 
   soundBtn.addEventListener('click', () => {
@@ -916,13 +981,6 @@
     soundBtn.textContent = state.muted ? '🔇 צליל' : '🔊 צליל';
   });
 
-  resetBtn.addEventListener('click', () => {
-    if (confirm('לאפס את השיא?')){
-      try { localStorage.removeItem('penalty_night_highscore'); localStorage.removeItem('penalty_night_beststreak'); } catch(e){}
-      state.highscore = 0; state.bestStreak = 0; storedBestStreak = 0;
-      highEl.textContent = 0;
-    }
-  });
 
   startBtn.addEventListener('click', () => {
     ctx(); // resume/create the audio context on this user gesture so sounds work reliably on mobile
