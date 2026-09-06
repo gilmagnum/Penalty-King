@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>פנדל לילה — בעיטות עונשין</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --night: #060b14;
+    --night-2: #0e1a2b;
+    --line: #eef2ea;
+    --gold: #f0a83a;
+    --gold-2: #f7c76b;
+    --crimson: #d64545;
+    --emerald: #29c46a;
+    --ink: #eef3f8;
+    --muted: #9db0c4;
+  }
+  *{ box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    font-family:'Rubik', 'Segoe UI', Tahoma, sans-serif;
+    background:
+      radial-gradient(120% 60% at 15% -10%, rgba(240,168,58,0.10), transparent 55%),
+      radial-gradient(120% 60% at 85% -10%, rgba(240,168,58,0.10), transparent 55%),
+      linear-gradient(180deg, var(--night) 0%, var(--night-2) 100%);
+    color:var(--ink);
+    display:flex; align-items:center; justify-content:center;
+    min-height:100vh;
+    padding:16px env(safe-area-inset-right) 16px env(safe-area-inset-left);
+    overflow:hidden;
+  }
+  .stage{ width:100%; max-width:460px; display:flex; flex-direction:column; gap:10px; }
+
+  .scoreboard{
+    display:flex; justify-content:space-between; align-items:stretch;
+    background:linear-gradient(180deg, #101d30, #0a1524);
+    border:1px solid rgba(255,255,255,0.08); border-radius:16px; padding:10px 14px;
+    box-shadow:0 10px 24px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  .cell{ display:flex; flex-direction:column; align-items:center; gap:3px; min-width:64px; }
+  .cell-label{ font-size:11px; color:var(--muted); font-weight:500; }
+  .cell-value{ font-size:24px; font-weight:900; color:var(--gold-2); letter-spacing:0.5px; text-shadow:0 0 14px rgba(240,168,58,0.35); font-variant-numeric:tabular-nums; }
+  #timer.low-time{ color:var(--crimson); text-shadow:0 0 14px rgba(214,69,69,0.6); animation:timerPulse .6s ease-in-out infinite; }
+  @keyframes timerPulse{ 0%,100%{ transform:scale(1);} 50%{ transform:scale(1.12);} }
+
+  .streak-banner{ text-align:center; font-size:13px; font-weight:700; color:var(--gold-2); min-height:18px; opacity:0; transform:translateY(-4px); transition:opacity .25s ease, transform .25s ease; }
+  .streak-banner.show{ opacity:1; transform:translateY(0); }
+
+  #arena{
+    position:relative; width:100%; aspect-ratio:1/1.18; border-radius:18px; overflow:hidden;
+    border:3px solid rgba(255,255,255,0.85);
+    box-shadow:0 18px 40px rgba(0,0,0,0.55), inset 0 0 50px rgba(0,0,0,0.55);
+    background:
+      radial-gradient(80% 45% at 50% 100%, rgba(255,255,255,0.06), transparent 60%),
+      linear-gradient(180deg, #07101d 0%, #0d1f30 42%, #123a2a 68%, #1c7a45 100%);
+    touch-action:none;
+  }
+  .floodlight{ position:absolute; top:-10%; width:55%; height:55%; background:radial-gradient(circle, rgba(255,247,220,0.28), transparent 65%); pointer-events:none; }
+  .floodlight.l{ left:-15%; } .floodlight.r{ right:-15%; }
+  .crowd{ position:absolute; top:2%; left:0; right:0; height:9%; display:flex; align-items:flex-end; gap:2px; padding:0 2%; opacity:0.85; }
+  .crowd span{ flex:1; min-width:3px; border-radius:2px 2px 0 0; background:linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.03)); animation:sway 2.6s ease-in-out infinite; }
+  @keyframes sway{ 0%,100%{ transform:scaleY(1);} 50%{ transform:scaleY(0.82);} }
+
+  .pitch-lines{ position:absolute; bottom:0; left:50%; transform:translateX(-50%); width:78%; height:34%; border:2px solid rgba(255,255,255,0.5); border-bottom:none; border-radius:6px 6px 0 0; }
+  .penalty-spot{ position:absolute; bottom:9%; left:50%; width:7px; height:7px; background:rgba(255,255,255,0.55); border-radius:50%; transform:translateX(-50%); }
+  .grass{ position:absolute; bottom:0; width:100%; height:30%; background:repeating-linear-gradient(90deg, rgba(255,255,255,0.05) 0 34px, rgba(0,0,0,0.06) 34px 68px); }
+
+  .goal{ position:absolute; top:6%; left:9%; width:82%; height:46%; }
+  .crossbar{ position:absolute; top:0; left:0; width:100%; height:5%; background:linear-gradient(180deg,#fff,#dfe4e8); border-radius:6px; box-shadow:0 4px 10px rgba(0,0,0,0.4); z-index:4; }
+  .post{ position:absolute; top:0; width:5%; height:100%; background:linear-gradient(180deg,#fff,#dfe4e8); box-shadow:0 0 10px rgba(0,0,0,0.3); z-index:4; }
+  .post.left{ left:0; border-top-right-radius:4px; } .post.right{ right:0; border-top-left-radius:4px; }
+  .woodflash{ animation:woodFlash .32s ease-out; }
+  @keyframes woodFlash{ 0%{ box-shadow:0 0 0 rgba(255,255,255,0);} 30%{ box-shadow:0 0 22px 6px rgba(255,255,255,0.95);} 100%{ box-shadow:0 0 0 rgba(255,255,255,0);} }
+  .net{ position:absolute; top:5%; left:5%; right:5%; bottom:0; background-image:linear-gradient(rgba(255,255,255,0.22) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(255,255,255,0.22) 1.5px, transparent 1.5px); background-size:12% 14%; transform-origin:50% 20%; transition:transform .5s cubic-bezier(.34,1.6,.5,1); }
+  .net.ripple{ animation:netpulse .5s cubic-bezier(.34,1.6,.5,1); }
+  @keyframes netpulse{ 0%{ transform:scale(1); } 35%{ transform:scale(1.05) translateY(2%); } 100%{ transform:scale(1); } }
+
+  /* ---------- Keeper: full-coverage, two-axis diving ---------- */
+  #keeper{
+    position:absolute; top:28%; left:44%; width:15%; height:26%; z-index:6;
+    display:flex; flex-direction:column; align-items:center;
+    transition:left .3s cubic-bezier(.2,.8,.3,1), top .3s cubic-bezier(.2,.8,.3,1), transform .3s cubic-bezier(.2,.8,.3,1);
+    filter:drop-shadow(0 8px 8px rgba(0,0,0,0.5));
+  }
+  #keeper.idle{ animation:breathe 2.4s ease-in-out infinite; }
+  @keyframes breathe{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-2px);} }
+  .k-head{ width:24px; height:24px; background:radial-gradient(circle at 32% 30%, #ffdbac, #c98a55); border-radius:50%; border:2px solid #a8703f; z-index:2; }
+  .k-jersey{ width:38px; height:40px; margin-top:-3px; border-radius:8px 8px 4px 4px; background:linear-gradient(135deg,#f0c53e,#c99a1d); position:relative; box-shadow:inset 0 3px 6px rgba(255,255,255,0.3); }
+  .k-jersey::after{ content:''; position:absolute; inset:0; background:repeating-linear-gradient(135deg, rgba(15,26,43,0.18) 0 6px, transparent 6px 12px); }
+  .k-arm{ position:absolute; width:11px; height:35px; top:1px; border-radius:6px; background:linear-gradient(135deg,#f0c53e,#8a6a12); transition:transform .28s ease; z-index:3; }
+  .k-arm.left{ left:-8px; transform-origin:top center; transform:rotate(8deg); }
+  .k-arm.right{ right:-8px; transform-origin:top center; transform:rotate(-8deg); }
+  .k-glove{ position:absolute; bottom:-6px; width:17px; height:17px; background:linear-gradient(160deg,#ffffff,#d7dee5); border:2.5px solid #1f2937; border-radius:7px; box-shadow:0 3px 5px rgba(0,0,0,0.35); left:50%; transform:translateX(-50%); z-index:4; }
+  .k-glove::before{ content:''; position:absolute; top:-4px; left:50%; transform:translateX(-50%); width:9px; height:5px; background:#1f2937; border-radius:2px 2px 0 0; }
+  .k-shorts{ width:32px; height:14px; background:#152238; border-radius:2px; margin-top:1px; z-index:2; }
+  .k-legs{ display:flex; gap:6px; margin-top:1px; transition:transform .28s ease; }
+  .k-leg{ width:8px; height:16px; background:linear-gradient(180deg,#1c2a3f,#0d1727); border-radius:3px; position:relative; }
+  .k-leg::after{ content:''; position:absolute; bottom:-3px; left:-1px; width:10px; height:5px; background:#eef3f8; border-radius:2px; }
+
+  #keeper.reach-high .k-arm.left{ transform:rotate(-32deg) translateY(-8px); }
+  #keeper.reach-high .k-arm.right{ transform:rotate(32deg) translateY(-8px); }
+  #keeper.reach-high .k-legs{ transform:scaleY(0.82) translateY(2px); }
+  #keeper.reach-low .k-arm.left{ transform:rotate(78deg) translateY(6px); }
+  #keeper.reach-low .k-arm.right{ transform:rotate(-78deg) translateY(6px); }
+  #keeper.reach-low .k-legs{ transform:scaleX(1.35); }
+  #keeper.reach-center .k-arm.left{ transform:rotate(18deg); }
+  #keeper.reach-center .k-arm.right{ transform:rotate(-18deg); }
+
+  #ballShadow{ position:absolute; bottom:7.6%; left:47%; width:34px; height:9px; background:radial-gradient(closest-side, rgba(0,0,0,0.55), transparent 75%); border-radius:50%; z-index:3; }
+  #ball{
+    position:absolute; bottom:8%; left:47%; width:34px; height:34px; border-radius:50%; overflow:hidden;
+    background:radial-gradient(circle at 35% 30%, #ffffff 0%, #eef1f3 45%, #c3cbd2 78%, #98a2ab 100%);
+    border:1.5px dashed rgba(15,26,43,0.3);
+    box-shadow:0 8px 16px rgba(0,0,0,0.5), inset -5px -6px 10px rgba(0,0,0,0.28), inset 3px 3px 6px rgba(255,255,255,0.55);
+    z-index:10;
+  }
+  #ball::after{ content:''; position:absolute; top:30%; left:28%; width:14px; height:14px; background:#131c28; clip-path:polygon(50% 0%,100% 38%,82% 100%,18% 100%,0% 38%); }
+  #ball::before{ content:''; position:absolute; top:-5px; left:55%; width:13px; height:13px; background:#131c28; clip-path:polygon(50% 0%,100% 38%,82% 100%,18% 100%,0% 38%); opacity:0.95; z-index:1; }
+  .ball-panel{ position:absolute; background:#131c28; }
+  .ball-panel.hex{ clip-path:polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%); }
+  .ball-panel.p1{ width:13px; height:10px; bottom:0px; left:0px; transform:rotate(14deg); opacity:0.95; }
+  .ball-panel.p2{ width:12px; height:9px; top:36%; left:74%; transform:rotate(-12deg); opacity:0.93; }
+  .ball-panel.p3{ width:10px; height:8px; top:5%; left:35%; transform:rotate(24deg); opacity:0.9; }
+  #ball.grabbed{ box-shadow:0 8px 16px rgba(0,0,0,0.5), inset -5px -6px 10px rgba(0,0,0,0.28), inset 3px 3px 6px rgba(255,255,255,0.55), 0 0 0 4px rgba(240,168,58,0.35); }
+  #ball.ball-recoil{ animation:ballRecoil .38s ease-out; }
+  @keyframes ballRecoil{ 0%{ filter:brightness(1);} 25%{ filter:brightness(1.8);} 100%{ filter:brightness(1);} }
+
+  .trail{ position:absolute; width:18px; height:18px; border-radius:50%; z-index:9; pointer-events:none; background:radial-gradient(circle, rgba(255,255,255,0.75), rgba(240,168,58,0.25) 60%, transparent 100%); transform:translate(-50%,-50%); animation:fade .45s forwards; }
+  @keyframes fade{ from{ opacity:0.75; transform:translate(-50%,-50%) scale(1);} to{ opacity:0; transform:translate(-50%,-50%) scale(0.15);} }
+
+  .aim-line{ position:absolute; z-index:8; height:2px; border-radius:2px; background:repeating-linear-gradient(90deg, rgba(240,168,58,0.85) 0 6px, transparent 6px 12px); transform-origin:0 50%; pointer-events:none; opacity:0; }
+  .aim-line.show{ opacity:1; }
+
+  /* ---------- Bonus tokens ---------- */
+  .bonus-token{
+    position:absolute; width:36px; height:36px; border-radius:50%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0px;
+    transform:translate(-50%,-50%); z-index:5;
+    animation:bonusPulse 1.4s ease-in-out infinite;
+  }
+  .bonus-token .b-icon{ font-size:12px; line-height:1; }
+  .bonus-token .b-amt{ font-size:11px; font-weight:900; line-height:1.1; }
+  .bonus-token.good{ background:radial-gradient(circle at 35% 30%, #eafff2, #29c46a); color:#063a1e; box-shadow:0 0 14px rgba(41,196,106,0.65); }
+  .bonus-token.good.time{ background:radial-gradient(circle at 35% 30%, #e8f6ff, #2a93c4); color:#062a3a; box-shadow:0 0 14px rgba(42,147,196,0.65); }
+  .bonus-token.jackpot{
+    background:radial-gradient(circle at 35% 30%, #fff9e0, #ff2fb0 55%, #7b2ff7 100%);
+    color:#2a0630; box-shadow:0 0 20px 6px rgba(255,47,176,0.8);
+    animation:bonusPulse 1.4s ease-in-out infinite, jackpotBlink 0.45s ease-in-out infinite;
+  }
+  @keyframes jackpotBlink{ 0%,100%{ filter:brightness(1);} 50%{ filter:brightness(1.7);} }
+  .bonus-token.bad{ background:radial-gradient(circle at 35% 30%, #3a1414, #7a1f1f); color:#ffdede; box-shadow:0 0 14px rgba(214,69,69,0.65); border:1px solid rgba(255,255,255,0.15); }
+  @keyframes bonusPulse{ 0%,100%{ transform:translate(-50%,-50%) scale(1);} 50%{ transform:translate(-50%,-50%) scale(1.14);} }
+
+  #message{ position:absolute; top:56%; left:0; right:0; text-align:center; font-size:19px; font-weight:900; text-shadow:0 3px 10px rgba(0,0,0,0.85); z-index:20; opacity:0; transition:opacity .25s ease, transform .25s ease; transform:translateY(6px) scale(0.96); padding:0 6%; }
+  #message.show{ opacity:1; transform:translateY(0) scale(1); }
+
+  .power-wrap{ display:none; flex-direction:column; gap:4px; }
+  .power-wrap.active{ display:flex; }
+  .power-bar{ height:12px; border-radius:7px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); overflow:hidden; }
+  .power-fill{ height:100%; width:0%; background:linear-gradient(90deg, var(--emerald), var(--gold), var(--crimson)); transition:width .04s linear; }
+  .power-caption{ display:flex; justify-content:space-between; font-size:12px; color:var(--muted); }
+
+  .hint{ text-align:center; font-size:13px; color:var(--muted); background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:9px 12px; line-height:1.5; }
+
+  .actions{ display:flex; justify-content:center; align-items:center; gap:10px; flex-wrap:wrap; }
+  @media (max-width: 420px){
+    .actions{ gap:8px; }
+    .icon-btn{ padding:8px 12px; font-size:12.5px; }
+  }
+  .icon-btn{ background:rgba(255,255,255,0.06); color:var(--ink); border:1px solid rgba(255,255,255,0.12); padding:8px 16px; border-radius:10px; font-family:inherit; font-size:13px; font-weight:500; cursor:pointer; transition:background .15s ease, transform .1s ease; }
+  .icon-btn:hover{ background:rgba(255,255,255,0.12); }
+  .icon-btn:active{ transform:scale(0.96); }
+  .icon-btn:focus-visible{ outline:2px solid var(--gold-2); outline-offset:2px; }
+
+  .modal-veil{ position:fixed; inset:0; background:rgba(3,7,14,0.72); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; z-index:50; opacity:0; pointer-events:none; transition:opacity .25s ease; }
+  .modal-veil.show{ opacity:1; pointer-events:auto; }
+  .modal-card{ background:linear-gradient(180deg,#101d30,#0a1524); border:1px solid rgba(255,255,255,0.1); border-radius:18px; padding:26px 24px; width:88%; max-width:340px; text-align:center; box-shadow:0 20px 50px rgba(0,0,0,0.6); transform:translateY(10px) scale(0.97); transition:transform .25s ease; }
+  .modal-veil.show .modal-card{ transform:translateY(0) scale(1); }
+  .modal-title{ font-size:20px; font-weight:900; color:var(--gold-2); margin-bottom:14px; }
+  .modal-stats{ display:flex; justify-content:space-around; margin-bottom:18px; }
+  .modal-stat b{ display:block; font-size:22px; color:var(--ink); }
+  .modal-stat span{ font-size:12px; color:var(--muted); }
+  .modal-btn{ background:linear-gradient(180deg, var(--gold-2), var(--gold)); color:#241503; border:none; padding:11px 26px; border-radius:12px; font-family:inherit; font-weight:700; font-size:14px; cursor:pointer; box-shadow:0 6px 16px rgba(240,168,58,0.35); }
+  .modal-btn:active{ transform:scale(0.97); }
+  .hidden{ display:none !important; }
+
+  .countdown-veil{
+    position:absolute; inset:0; z-index:30; display:flex; align-items:center; justify-content:center;
+    background:rgba(3,7,14,0.55); opacity:1; transition:opacity .3s ease;
+  }
+  .countdown-veil.hidden{ opacity:0; pointer-events:none; }
+  .countdown-num{
+    font-size:64px; font-weight:900; color:var(--gold-2); text-shadow:0 0 24px rgba(240,168,58,0.6);
+    animation:countPop .7s ease-out;
+  }
+  @keyframes countPop{ 0%{ transform:scale(0.4); opacity:0.3;} 40%{ transform:scale(1.15); opacity:1;} 100%{ transform:scale(1); opacity:1;} }
+  .countdown-num.hidden{ display:none; }
+  .start-btn{
+    background:linear-gradient(180deg, var(--gold-2), var(--gold)); color:#241503; border:none;
+    padding:14px 30px; border-radius:14px; font-family:inherit; font-weight:900; font-size:16px;
+    cursor:pointer; box-shadow:0 8px 20px rgba(240,168,58,0.4); animation:startPulse 1.6s ease-in-out infinite;
+  }
+  .start-btn:active{ transform:scale(0.97); }
+  @keyframes startPulse{ 0%,100%{ transform:scale(1);} 50%{ transform:scale(1.05);} }
+
+  #confettiLayer{ position:fixed; inset:0; z-index:60; pointer-events:none; overflow:hidden; }
+  .confetti-piece{ position:absolute; top:-12px; width:8px; height:14px; opacity:0.95; animation:confettiFall linear forwards; }
+  @keyframes confettiFall{ to{ transform:translateY(112vh) rotate(760deg); opacity:0.25; } }
+
+  @media (prefers-reduced-motion: reduce){
+    .crowd span{ animation:none; }
+    .trail{ display:none; }
+    .net.ripple{ animation:none; }
+    #keeper.idle{ animation:none; }
+    .bonus-token{ animation:none; }
+    .bonus-token.jackpot{ animation:none; }
+    .countdown-num{ animation:none; }
+    .confetti-piece{ animation:none; display:none; }
+  }
+</style>
+<!-- arcaide-leaderboard -->
+<script src="https://gilmagnum.github.io/games/config.js"></script>
+<script src="https://gilmagnum.github.io/games/leaderboard.js"></script>
+<style>
+  .lb-home{ align-self:center; font-size:12.5px; color:var(--muted); text-decoration:none; }
+  .lb-home:hover{ color:var(--ink); }
+</style>
+<!-- arcaide-pwa: installable to the home screen -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<meta name="theme-color" content="#0a1524">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="פנדלים">
+</head>
+<body>
+
+  <div class="stage">
+    <div class="scoreboard">
+      <div class="cell"><div class="cell-label">ניקוד</div><div class="cell-value" id="score">0</div></div>
+      <div class="cell"><div class="cell-label">זמן</div><div class="cell-value" id="timer">30</div></div>
+      <div class="cell"><div class="cell-label">שיא</div><div class="cell-value" id="highscore">0</div></div>
+    </div>
+
+    <div class="streak-banner" id="streakBanner"></div>
+
+    <div id="arena">
+      <div class="floodlight l"></div>
+      <div class="floodlight r"></div>
+      <div class="crowd" id="crowd"></div>
+
+      <div class="pitch-lines"></div>
+      <div class="penalty-spot"></div>
+
+      <div class="goal">
+        <div class="crossbar"></div>
+        <div class="post left"></div>
+        <div class="post right"></div>
+        <div class="net" id="net"></div>
+      </div>
+
+      <div id="keeper" class="idle">
+        <div class="k-head"></div>
+        <div class="k-jersey">
+          <div class="k-arm left"><div class="k-glove"></div></div>
+          <div class="k-arm right"><div class="k-glove"></div></div>
+        </div>
+        <div class="k-shorts"></div>
+        <div class="k-legs"><div class="k-leg"></div><div class="k-leg"></div></div>
+      </div>
+
+      <div class="grass"></div>
+      <div class="aim-line" id="aimLine"></div>
+      <div id="ballShadow"></div>
+      <div id="ball"><span class="ball-panel hex p1"></span><span class="ball-panel hex p2"></span><span class="ball-panel hex p3"></span></div>
+      <div id="message">בחר כיוון וגרור מהכדור לבעיטה</div>
+      <div class="countdown-veil" id="countdownVeil">
+        <button class="start-btn" id="startBtn">▶ התחל משחק</button>
+        <div class="countdown-num hidden" id="countdownNum">3</div>
+      </div>
+    </div>
+
+    <div class="power-wrap" id="powerWrap">
+      <div class="power-bar"><div class="power-fill" id="powerFill"></div></div>
+      <div class="power-caption"><span>עוצמת בעיטה</span><span id="powerText">0%</span></div>
+    </div>
+
+    <div class="hint">⚽ יש לך 30 שניות לצבור כמה שיותר ניקוד. גרור מהכדור לכיוון השער כדי לבעוט, ושים לב לבונוסים הצפים בתוך השער — כולל תוספת זמן ⏱️!</div>
+
+    <div class="actions">
+      <button class="icon-btn" id="soundBtn">🔊 צליל</button>
+      <button class="icon-btn" id="btnScores">🏆 טבלת שיאים</button>
+      <button class="icon-btn" id="resetBtn">איפוס שיא</button>
+      <a class="lb-home" href="https://gilmagnum.github.io/games/">← כל המשחקים</a>
+    </div>
+  </div>
+
+  <div id="confettiLayer"></div>
+
+  <div class="modal-veil" id="overModal">
+    <div class="modal-card">
+      <div class="modal-title">המשחק נגמר</div>
+      <div class="modal-stats">
+        <div class="modal-stat"><b id="finalScore">0</b><span>ניקוד סופי</span></div>
+        <div class="modal-stat"><b id="finalStreak">0</b><span>רצף שיא</span></div>
+      </div>
+      <button class="modal-btn" id="playAgainBtn">שחק שוב</button>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+
+  const ROUND_SECONDS = 30;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let storedHigh = 0, storedBestStreak = 0;
+  try {
+    storedHigh = parseInt(localStorage.getItem('penalty_night_highscore') || '0', 10) || 0;
+    storedBestStreak = parseInt(localStorage.getItem('penalty_night_beststreak') || '0', 10) || 0;
+  } catch(e) {}
+
+  const state = {
+    score: 0, timeLeft: ROUND_SECONDS, streak: 0,
+    bestStreak: storedBestStreak, highscore: storedHigh,
+    busy: false, dragging: false, muted: false,
+    bonus: null, over: false, started: false, timerHandle: null, locked: true, doubleSpawnedThisRound: false
+  };
+
+  const arena = document.getElementById('arena');
+  const ball = document.getElementById('ball');
+  const ballShadow = document.getElementById('ballShadow');
+  const keeper = document.getElementById('keeper');
+  const net = document.getElementById('net');
+  const message = document.getElementById('message');
+  const aimLine = document.getElementById('aimLine');
+  const powerWrap = document.getElementById('powerWrap');
+  const powerFill = document.getElementById('powerFill');
+  const powerText = document.getElementById('powerText');
+  const scoreEl = document.getElementById('score');
+  const highEl = document.getElementById('highscore');
+  const timerEl = document.getElementById('timer');
+  const streakBanner = document.getElementById('streakBanner');
+  const crowdEl = document.getElementById('crowd');
+  const soundBtn = document.getElementById('soundBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const overModal = document.getElementById('overModal');
+  const finalScoreEl = document.getElementById('finalScore');
+  const finalStreakEl = document.getElementById('finalStreak');
+  const playAgainBtn = document.getElementById('playAgainBtn');
+  const countdownVeil = document.getElementById('countdownVeil');
+  const countdownNum = document.getElementById('countdownNum');
+  const startBtn = document.getElementById('startBtn');
+  const confettiLayer = document.getElementById('confettiLayer');
+  const crossbarEl = document.querySelector('.crossbar');
+  const postLeftEl = document.querySelector('.post.left');
+  const postRightEl = document.querySelector('.post.right');
+
+  function flashWoodwork(){
+    [crossbarEl, postLeftEl, postRightEl].forEach(el => {
+      el.classList.add('woodflash');
+      setTimeout(() => el.classList.remove('woodflash'), 320);
+    });
+  }
+  function triggerRecoil(){
+    ball.classList.add('ball-recoil');
+    setTimeout(() => ball.classList.remove('ball-recoil'), 380);
+  }
+
+  highEl.textContent = state.highscore;
+
+  for (let i = 0; i < 46; i++) {
+    const bar = document.createElement('span');
+    bar.style.height = (40 + Math.random()*60) + '%';
+    bar.style.animationDelay = (Math.random()*2) + 's';
+    if (Math.random() > 0.85) bar.style.background = 'linear-gradient(180deg, rgba(240,168,58,0.35), rgba(240,168,58,0.05))';
+    crowdEl.appendChild(bar);
+  }
+
+  function renderTimer(){
+    const t = Math.max(0, Math.ceil(state.timeLeft));
+    timerEl.textContent = t;
+    timerEl.classList.toggle('low-time', t <= 5 && t > 0);
+  }
+  renderTimer();
+
+  function startTimerIfNeeded(){
+    if (state.started || state.over) return;
+    state.started = true;
+    scheduleGuaranteedDouble();
+    state.timerHandle = setInterval(() => {
+      state.timeLeft -= 1;
+      if (state.timeLeft <= 5 && state.timeLeft > 0){
+        playLowTimeTick();
+      }
+      if (state.timeLeft <= 0){
+        state.timeLeft = 0;
+        clearInterval(state.timerHandle);
+        state.timeUp = true;
+      }
+      renderTimer();
+      // if no kick is currently resolving, end the round right away instead of waiting
+      if (state.timeUp && !state.busy && !state.over){
+        openGameOver();
+      }
+    }, 1000);
+  }
+
+  function runCountdown(){
+    let n = 3;
+    countdownNum.textContent = n;
+    playCountTick(n);
+    const step = () => {
+      n -= 1;
+      if (n > 0){
+        countdownNum.textContent = n;
+        countdownNum.style.animation = 'none';
+        void countdownNum.offsetWidth;
+        countdownNum.style.animation = '';
+        playCountTick(n);
+        setTimeout(step, 700);
+      } else {
+        countdownVeil.classList.add('hidden');
+        state.locked = false;
+        playWhistleStart();
+        startTimerIfNeeded();
+      }
+    };
+    setTimeout(step, 700);
+  }
+
+  function spawnConfetti(){
+    const colors = ['#f0a83a','#f7c76b','#29c46a','#d64545','#eef3f8','#2a93c4'];
+    for (let i = 0; i < 46; i++){
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.left = (Math.random()*100) + 'vw';
+      piece.style.background = colors[Math.floor(Math.random()*colors.length)];
+      piece.style.animationDuration = (1.8 + Math.random()*1.4) + 's';
+      piece.style.animationDelay = (Math.random()*0.4) + 's';
+      piece.style.transform = `rotate(${Math.random()*360}deg)`;
+      confettiLayer.appendChild(piece);
+      setTimeout(() => piece.remove(), 3600);
+    }
+  }
+
+  function updateStreakBanner(){
+    if (state.streak >= 2){
+      let label = 'רצף ' + state.streak;
+      if (state.streak >= 8) label += ' 🔥🔥';
+      else if (state.streak >= 4) label += ' 🔥';
+      streakBanner.textContent = label;
+      streakBanner.classList.add('show');
+    } else {
+      streakBanner.classList.remove('show');
+    }
+  }
+
+  // ---------- audio ----------
+  let actx = null;
+  function ctx(){ if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} } return actx; }
+  function tone(freq, dur, type, vol, delay){
+    if (state.muted) return;
+    const c = ctx(); if (!c) return;
+    const t0 = c.currentTime + (delay||0);
+    const osc = c.createOscillator(), gain = c.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, t0);
+    gain.gain.setValueAtTime(vol||0.2, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    osc.connect(gain); gain.connect(c.destination);
+    osc.start(t0); osc.stop(t0 + dur + 0.02);
+  }
+  function noiseBurst(dur, vol, filterFreq, filterType){
+    if (state.muted) return;
+    const c = ctx(); if (!c) return;
+    const bufferSize = c.sampleRate * dur;
+    const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random()*2 - 1) * (1 - i/bufferSize);
+    const src = c.createBufferSource(); src.buffer = buffer;
+    const filter = c.createBiquadFilter(); filter.type = filterType || 'bandpass'; filter.frequency.value = filterFreq || 1200;
+    const gain = c.createGain(); gain.gain.value = vol || 0.3;
+    src.connect(filter); filter.connect(gain); gain.connect(c.destination);
+    src.start();
+  }
+  function playKick(power){ tone(120 - power*0.4, 0.09, 'sine', 0.3); noiseBurst(0.06, 0.25, 900, 'bandpass'); }
+  function playGoal(){ tone(523,0.12,'triangle',0.22,0); tone(659,0.12,'triangle',0.22,0.09); tone(784,0.22,'triangle',0.22,0.18); noiseBurst(0.5,0.18,2200,'highpass'); }
+  function playSave(){ noiseBurst(0.12,0.35,2600,'highpass'); tone(200,0.08,'square',0.12,0.02); }
+  function playPost(){ tone(920,0.05,'square',0.28,0); tone(460,0.16,'triangle',0.22,0.04); noiseBurst(0.09,0.28,3400,'highpass'); }
+  function playMiss(){ tone(220,0.16,'sawtooth',0.18,0); tone(160,0.22,'sawtooth',0.16,0.1); }
+  function playOver(){ tone(300,0.16,'sawtooth',0.15,0); tone(220,0.18,'sawtooth',0.15,0.16); tone(140,0.3,'sawtooth',0.15,0.32); }
+  function playBonusGood(){ tone(880,0.09,'triangle',0.22,0); tone(1180,0.12,'triangle',0.22,0.07); tone(1568,0.14,'triangle',0.2,0.14); }
+  function playBonusBad(){ tone(180,0.22,'sawtooth',0.22,0); noiseBurst(0.25,0.3,300,'lowpass'); }
+  function playCountTick(){
+    tone(740, 0.1, 'square', 0.22, 0);
+    noiseBurst(0.03, 0.18, 4200, 'highpass');
+  }
+  function playLowTimeTick(){
+    tone(940, 0.05, 'square', 0.15, 0);
+    tone(210, 0.09, 'sine', 0.13, 0.01);
+  }
+  function playRefWhistle(duration){
+    if (state.muted) return;
+    const c = ctx(); if (!c) return;
+    const t0 = c.currentTime;
+
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(0.3, t0 + 0.015);
+    gain.gain.setValueAtTime(0.3, t0 + duration * 0.75);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+    gain.connect(c.destination);
+
+    // two closely-detuned tones create the natural "beating" warble of a pea whistle
+    const osc1 = c.createOscillator(); osc1.type = 'sine'; osc1.frequency.setValueAtTime(2830, t0);
+    const osc2 = c.createOscillator(); osc2.type = 'sine'; osc2.frequency.setValueAtTime(2880, t0);
+    osc1.connect(gain); osc2.connect(gain);
+    osc1.start(t0); osc2.start(t0);
+    osc1.stop(t0 + duration + 0.05); osc2.stop(t0 + duration + 0.05);
+
+    // breathy noise layer for realism
+    const bufferSize = Math.floor(c.sampleRate * duration);
+    const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random()*2 - 1;
+    const noiseSrc = c.createBufferSource(); noiseSrc.buffer = buffer;
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2850; bp.Q.value = 5;
+    const noiseGain = c.createGain(); noiseGain.gain.value = 0.06;
+    noiseSrc.connect(bp); bp.connect(noiseGain); noiseGain.connect(c.destination);
+    noiseSrc.start(t0);
+  }
+  function playWhistleStart(){ playRefWhistle(0.45); }
+  function playWhistleEnd(){
+    playRefWhistle(0.28);
+    setTimeout(() => playRefWhistle(0.28), 350);
+  }
+  function playCrowdRoar(){
+    if (state.muted) return;
+    noiseBurst(2.4, 0.42, 850, 'lowpass');
+    noiseBurst(2.0, 0.22, 2000, 'bandpass');
+    tone(110, 1.6, 'sawtooth', 0.12, 0.05);
+    [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => tone(f, 0.4, 'triangle', 0.16, 0.15 + i*0.13));
+  }
+  function vibrate(ms){ if (navigator.vibrate) try { navigator.vibrate(ms); } catch(e){} }
+
+  function arenaRect(){ return arena.getBoundingClientRect(); }
+  function ballCenter(){ const r = ball.getBoundingClientRect(), a = arenaRect(); return { x: r.left + r.width/2 - a.left, y: r.top + r.height/2 - a.top }; }
+
+  // ---------- bonus tokens — icon shows category (🪙=points, ⏱=time, 💣=danger) so type is never ambiguous ----------
+  const DOUBLE_BONUS = { key:'doublePoints', icon:'🪙', good:true, label:'הכפלת כל הניקוד ×2 🌟' };
+  const BONUS_TYPES = [
+    { key:'bonusPoints', icon:'🪙', good:true,  weight:36, label:'בונוס נקודות 🪙+3' },
+    { key:'extraTime',   icon:'⏱',  good:true,  weight:24, label:'' },
+    { key:'minusPoints', icon:'🪙', good:false, weight:22, label:'בונוס רע 🪙−3' },
+    { key:'gameOver',    icon:'💣', good:false, weight:12, label:'פצצה! הסיבוב נגמר מיד 💥' }
+  ];
+  function pickBonusType(){
+    const total = BONUS_TYPES.reduce((s,b)=>s+b.weight,0);
+    let r = Math.random()*total;
+    for (const b of BONUS_TYPES){ if (r < b.weight) return b; r -= b.weight; }
+    return BONUS_TYPES[0];
+  }
+  function clearBonus(){
+    if (state.bonus){
+      if (state.bonus.expireTimer) clearTimeout(state.bonus.expireTimer);
+      if (state.bonus.el) state.bonus.el.remove();
+    }
+    state.bonus = null;
+  }
+  function spawnBonus(forcedType){
+    const type = forcedType || pickBonusType();
+    const timeAmount = type.key === 'extraTime' ? (Math.random() < 0.5 ? 5 : 10) : null;
+    const xPct = 18 + Math.random()*64;
+    const yPct = 10 + Math.random()*36;
+    const el = document.createElement('div');
+    el.className = 'bonus-token ' + (type.good ? 'good' : 'bad') + (type.key === 'extraTime' ? ' time' : '') + (type.key === 'doublePoints' ? ' jackpot' : '');
+    let amountText = '';
+    if (type.key === 'extraTime') amountText = '+' + timeAmount + 'ש';
+    else if (type.key === 'bonusPoints') amountText = '+3';
+    else if (type.key === 'minusPoints') amountText = '−3';
+    else if (type.key === 'doublePoints') amountText = '×2';
+    el.innerHTML = '<span class="b-icon">' + type.icon + '</span>' + (amountText ? '<span class="b-amt">' + amountText + '</span>' : '');
+    el.style.left = xPct + '%';
+    el.style.top = yPct + '%';
+    arena.appendChild(el);
+    const lifespan = 3200 + Math.random()*2600;
+    const expireTimer = setTimeout(() => {
+      if (state.bonus && state.bonus.el === el) clearBonus();
+    }, lifespan);
+    state.bonus = { type, xPct, yPct, el, expireTimer, timeAmount };
+  }
+  // the jackpot double-points bonus is guaranteed exactly once per round, timed to land in the closing stretch
+  function scheduleGuaranteedDouble(){
+    const delayFrac = 0.68 + Math.random()*0.22; // 68%-90% into the round — late, but leaves time to react
+    const delayMs = ROUND_SECONDS * 1000 * delayFrac;
+    state.doubleScheduleHandle = setTimeout(() => {
+      if (state.over || state.timeUp) return;
+      clearBonus();
+      spawnBonus(DOUBLE_BONUS);
+    }, delayMs);
+  }
+  // ordinary bonuses appear unpredictably — not tied to rounds, can show up mid-turn too
+  setInterval(() => {
+    if (state.over || state.locked || state.bonus) return;
+    if (Math.random() < 0.4) spawnBonus();
+  }, 600);
+
+  // ---------- drag / kick control ----------
+  let start = {x:0, y:0};
+  let dragCurrent = {x:0, y:0};
+
+  arena.addEventListener('pointerdown', onDown);
+  arena.addEventListener('pointermove', onMove);
+  arena.addEventListener('pointerup', onUp);
+  arena.addEventListener('pointercancel', onUp);
+
+  function onDown(e){
+    if (state.busy || state.over || state.timeUp || state.locked) return;
+    const a = arenaRect();
+    const px = e.clientX - a.left, py = e.clientY - a.top;
+    const bc = ballCenter();
+    if (Math.hypot(px - bc.x, py - bc.y) < 50){
+      state.dragging = true;
+      start = { x: bc.x, y: bc.y };
+      dragCurrent = { x: px, y: py };
+      ball.classList.add('grabbed');
+      powerWrap.classList.add('active');
+      aimLine.classList.add('show');
+      message.classList.remove('show');
+    }
+  }
+  const POWER_MAX_DIST = 190;
+  const POWER_MIN = 22;
+  function computePower(dist){
+    const frac = Math.min(1, dist / POWER_MAX_DIST);
+    return POWER_MIN + frac * (100 - POWER_MIN);
+  }
+
+  function onMove(e){
+    if (!state.dragging || state.busy) return;
+    const a = arenaRect();
+    dragCurrent = { x: e.clientX - a.left, y: e.clientY - a.top };
+    const dx = dragCurrent.x - start.x, dy = dragCurrent.y - start.y;
+    const dist = Math.hypot(dx, dy);
+    const pct = Math.round(computePower(dist));
+    powerFill.style.width = pct + '%'; powerText.textContent = pct + '%';
+    const angle = Math.atan2(-dy, -dx) * 180/Math.PI;
+    const len = Math.min(120, dist*1.4);
+    aimLine.style.width = len + 'px'; aimLine.style.left = start.x + 'px'; aimLine.style.top = start.y + 'px';
+    aimLine.style.transform = `rotate(${angle}deg)`;
+  }
+  function onUp(e){
+    if (!state.dragging) return;
+    state.dragging = false;
+    ball.classList.remove('grabbed'); powerWrap.classList.remove('active'); aimLine.classList.remove('show');
+    const dx = dragCurrent.x - start.x, dy = dragCurrent.y - start.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 14) { powerFill.style.width='0%'; powerText.textContent='0%'; return; }
+    executeKick(dx, dy, dist);
+  }
+
+  function mapYPctFromArena(y, a){
+    const norm = Math.max(0, Math.min(1, (y/a.height - 0.07) / (0.53-0.07)));
+    return 4 + norm*(30-4);
+  }
+
+  function executeKick(dx, dy, dist){
+    if (state.over || state.timeUp) return;
+    startTimerIfNeeded();
+    state.busy = true;
+    powerFill.style.width = '0%'; powerText.textContent = '0%';
+    keeper.classList.remove('idle');
+
+    const a = arenaRect();
+    const power = computePower(dist);
+    const curve = Math.max(-1, Math.min(1, dx / 160)) * 46;
+    const shotDx = dx * 2.0, shotDy = dy * 2.0;
+
+    const startPos = ballCenter();
+    let targetX = startPos.x + shotDx;
+    let targetY = startPos.y + shotDy;
+
+    const goalMinX = a.width * 0.11, goalMaxX = a.width * 0.89;
+    const goalMinY = a.height * 0.07, goalMaxY = a.height * 0.53;
+    const postBandX = a.width * 0.045;
+    const barBandY = a.height * 0.035;
+
+    let shotStatus = 'goal';
+    if (power > 92 && Math.random() < 0.5){
+      shotStatus = 'over'; targetY = a.height * -0.04;
+    } else if (targetY < goalMinY - barBandY){
+      shotStatus = 'over';
+    } else if (targetY < goalMinY + barBandY){
+      shotStatus = 'bar'; targetY = goalMinY;
+    } else if (targetX < goalMinX - postBandX || targetX > goalMaxX + postBandX){
+      shotStatus = 'wide';
+    } else if (targetX < goalMinX + postBandX){
+      shotStatus = 'post'; targetX = goalMinX;
+    } else if (targetX > goalMaxX - postBandX){
+      shotStatus = 'post'; targetX = goalMaxX;
+    } else if (targetY > goalMaxY){
+      targetY = goalMaxY - 6;
+    }
+
+    // keeper has a rough, noisy read on the shot — right some of the time, not omniscient
+    const difficulty = 0.18; // fixed, weakened further — does not increase with score or streak
+    let keeperXPct, keeperYPct;
+    if (Math.random() < difficulty){
+      keeperXPct = (targetX / a.width) * 100 + (Math.random()-0.5)*20;
+      keeperYPct = mapYPctFromArena(targetY, a) + (Math.random()-0.5)*16;
+    } else {
+      keeperXPct = 20 + Math.random()*56;
+      keeperYPct = 4 + Math.random()*26;
+    }
+    keeperXPct = Math.max(16, Math.min(78, keeperXPct));
+    keeperYPct = Math.max(4, Math.min(30, keeperYPct));
+
+    const duration = Math.max(420, 780 - power*3.4);
+    const diveDelay = duration * 0.20;
+
+    playKick(power); vibrate(15);
+
+    setTimeout(() => {
+      keeper.style.left = keeperXPct + '%';
+      keeper.style.top = keeperYPct + '%';
+      const lean = keeperXPct - 44;
+      const rotate = Math.max(-32, Math.min(32, lean*1.05));
+      const stretch = 1 + Math.min(0.22, Math.abs(lean)/130);
+      keeper.style.transform = `rotate(${rotate}deg) scale(${stretch})`;
+      keeper.classList.remove('reach-high','reach-low','reach-center');
+      if (keeperYPct < 12) keeper.classList.add('reach-high');
+      else if (keeperYPct > 22) keeper.classList.add('reach-low');
+      else keeper.classList.add('reach-center');
+    }, diveDelay);
+
+    const loft = Math.min(a.height*0.35, 40 + power*1.6);
+    const ctrl = { x: (startPos.x + targetX)/2 + curve, y: Math.min(startPos.y, targetY) - loft };
+
+    const t0 = performance.now();
+    let trailTimer = null;
+    if (!reducedMotion){
+      trailTimer = setInterval(() => {
+        const bc = ballCenter();
+        const trail = document.createElement('div');
+        trail.className = 'trail'; trail.style.left = bc.x + 'px'; trail.style.top = bc.y + 'px';
+        arena.appendChild(trail);
+        setTimeout(() => trail.remove(), 460);
+      }, 28);
+    }
+
+    function frame(now){
+      let t = Math.min(1, (now - t0) / duration);
+      const oneMinusT = 1 - t;
+      const x = oneMinusT*oneMinusT*startPos.x + 2*oneMinusT*t*ctrl.x + t*t*targetX;
+      const y = oneMinusT*oneMinusT*startPos.y + 2*oneMinusT*t*ctrl.y + t*t*targetY;
+      const scale = 1 - 0.42*t;
+
+      ball.style.left = (x - ball.clientWidth/2) + 'px';
+      ball.style.top = (y - ball.clientHeight/2) + 'px';
+      ball.style.bottom = 'auto';
+      ball.style.transform = `scale(${scale}) rotate(${t*curve*6}deg)`;
+
+      ballShadow.style.left = (x - ballShadow.clientWidth/2) + 'px';
+      ballShadow.style.top = (Math.min(a.height - 26, y + 14)) + 'px';
+      ballShadow.style.bottom = 'auto';
+      ballShadow.style.opacity = String(0.55 - 0.3*t);
+      ballShadow.style.transform = `scale(${scale})`;
+
+      if (t < 1){ requestAnimationFrame(frame); }
+      else { if (trailTimer) clearInterval(trailTimer); resolveShot(shotStatus, targetX, targetY, a); }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function resolveShot(shotStatus, targetX, targetY, a){
+    const keeperRect = keeper.getBoundingClientRect();
+    const keeperCenter = { x: keeperRect.left + keeperRect.width/2 - a.left, y: keeperRect.top + keeperRect.height/2 - a.top };
+    const reachX = (keeperRect.width/2) * 0.9;
+    const reachY = (keeperRect.height/2) * 0.9;
+    const normDist = Math.hypot((targetX - keeperCenter.x)/reachX, (targetY - keeperCenter.y)/reachY);
+
+    let outcome;
+    if (shotStatus === 'wide' || shotStatus === 'over') outcome = 'out';
+    else if (shotStatus === 'bar' || shotStatus === 'post') outcome = shotStatus;
+    else if (normDist < 1) outcome = 'saved';
+    else outcome = 'goal';
+
+    let forceGameOver = false;
+    let bonusSuffix = '';
+
+    if (outcome === 'goal'){
+      state.score++;
+      state.streak++;
+      if (state.streak > state.bestStreak) state.bestStreak = state.streak;
+
+      // bonus hit-test
+      if (state.bonus){
+        const bx = state.bonus.xPct/100*a.width, by = state.bonus.yPct/100*a.height;
+        const bdist = Math.hypot(targetX-bx, targetY-by);
+        const hitRadius = a.width*0.085;
+        if (bdist < hitRadius){
+          const type = state.bonus.type;
+          let label = type.label;
+          switch(type.key){
+            case 'bonusPoints': state.score += 3; break;
+            case 'extraTime': state.timeLeft = Math.min(60, state.timeLeft + state.bonus.timeAmount); renderTimer(); label = 'תוספת זמן +' + state.bonus.timeAmount + ' שניות ⏱'; break;
+            case 'doublePoints': state.score = state.score * 2; break;
+            case 'minusPoints': state.score = Math.max(0, state.score-3); break;
+            case 'gameOver': forceGameOver = true; break;
+          }
+          bonusSuffix = ' + ' + label;
+          clearBonus();
+          if (type.good) { playBonusGood(); vibrate([10,30,10,30]); }
+          else { playBonusBad(); vibrate([40,20,40]); }
+        }
+      }
+
+      if (state.score > state.highscore){
+        state.highscore = state.score;
+        try { localStorage.setItem('penalty_night_highscore', state.highscore); } catch(e){}
+      }
+      showMessage('גוווווול! ⚽🔥' + bonusSuffix, bonusSuffix ? 'var(--gold-2)' : 'var(--emerald)');
+      net.classList.remove('ripple'); void net.offsetWidth; net.classList.add('ripple');
+      playGoal(); vibrate([10,40,10]);
+    } else {
+      state.streak = 0;
+      if (state.bestStreak > storedBestStreak){
+        try { localStorage.setItem('penalty_night_beststreak', state.bestStreak); } catch(e){}
+        storedBestStreak = state.bestStreak;
+      }
+      if (outcome === 'saved'){ showMessage('הצלה של השוער! 🧤', 'var(--crimson)'); playSave(); vibrate(25); }
+      else if (outcome === 'bar'){ showMessage('פגיעה בקורה! 🥅', 'var(--crimson)'); playPost(); flashWoodwork(); vibrate(30); triggerRecoil(); }
+      else if (outcome === 'post'){ showMessage('פגיעה בעמוד! 🥅', 'var(--crimson)'); playPost(); flashWoodwork(); vibrate(30); triggerRecoil(); }
+      else { showMessage('החוצה! ❌', 'var(--crimson)'); playMiss(); vibrate(25); }
+    }
+
+    scoreEl.textContent = state.score;
+    highEl.textContent = state.highscore;
+    updateStreakBanner();
+
+    setTimeout(() => {
+      resetBallAndKeeper();
+      if (forceGameOver || state.timeUp){
+        setTimeout(openGameOver, 250);
+      } else {
+        message.classList.remove('show');
+      }
+      state.busy = false;
+    }, 1000);
+  }
+
+  function resetBallAndKeeper(){
+    ball.style.left = '47%'; ball.style.top = 'auto'; ball.style.bottom = '8%';
+    ball.style.transform = 'scale(1) rotate(0deg)';
+    ballShadow.style.left = '47%'; ballShadow.style.top = 'auto'; ballShadow.style.bottom = '7.6%';
+    ballShadow.style.opacity = '0.55'; ballShadow.style.transform = 'scale(1)';
+    keeper.style.left = '44%'; keeper.style.top = '28%'; keeper.style.transform = 'none';
+    keeper.classList.remove('reach-high','reach-low','reach-center');
+    keeper.classList.add('idle');
+  }
+
+  function showMessage(text, color){ message.textContent = text; message.style.color = color; message.classList.add('show'); }
+
+  function openGameOver(){
+    state.over = true;
+    if (state.timerHandle) clearInterval(state.timerHandle);
+    if (state.doubleScheduleHandle) clearTimeout(state.doubleScheduleHandle);
+    clearBonus();
+    finalScoreEl.textContent = state.score;
+    finalStreakEl.textContent = state.bestStreak;
+    overModal.classList.add('show');
+    playWhistleEnd();
+    setTimeout(playCrowdRoar, 500);
+    spawnConfetti();
+    vibrate([20,40,20,40,60]);
+
+    // ArcAIde global leaderboard — prompts for a name when the run makes the top 10
+    if (window.Leaderboard) {
+      setTimeout(function () {
+        Leaderboard.gameOver(state.score, { streak: state.bestStreak });
+      }, 1400);
+    }
+  }
+
+  playAgainBtn.addEventListener('click', () => {
+    state.score = 0; state.streak = 0; state.over = false;
+    state.timeLeft = ROUND_SECONDS; state.started = false; state.timeUp = false;
+    state.finalWhistlePlayed = false; state.locked = true; state.doubleSpawnedThisRound = false;
+    scoreEl.textContent = 0;
+    renderTimer(); updateStreakBanner();
+    message.classList.remove('show');
+    overModal.classList.remove('show');
+    countdownVeil.classList.remove('hidden');
+    runCountdown();
+  });
+
+  // ArcAIde global leaderboard
+  if (window.Leaderboard) {
+    Leaderboard.init({ game: 'penalty-king', title: 'מלך הפנדלים', scoreLabel: 'נקודות' });
+    document.getElementById('btnScores').addEventListener('click', () => Leaderboard.show());
+  } else {
+    document.getElementById('btnScores').style.display = 'none';
+  }
+
+  soundBtn.addEventListener('click', () => {
+    state.muted = !state.muted;
+    soundBtn.textContent = state.muted ? '🔇 צליל' : '🔊 צליל';
+  });
+
+  resetBtn.addEventListener('click', () => {
+    if (confirm('לאפס את השיא?')){
+      try { localStorage.removeItem('penalty_night_highscore'); localStorage.removeItem('penalty_night_beststreak'); } catch(e){}
+      state.highscore = 0; state.bestStreak = 0; storedBestStreak = 0;
+      highEl.textContent = 0;
+    }
+  });
+
+  startBtn.addEventListener('click', () => {
+    ctx(); // resume/create the audio context on this user gesture so sounds work reliably on mobile
+    startBtn.style.display = 'none';
+    countdownNum.classList.remove('hidden');
+    runCountdown();
+  }, { once: true });
+})();
+</script>
+</body>
+</html>
