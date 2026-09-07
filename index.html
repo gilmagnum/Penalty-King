@@ -2,6 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
+<script>/* arcAId theme: light by default, remembered per browser */try{var _t=localStorage.getItem("gmh:theme");document.documentElement.setAttribute("data-arcade-theme",_t==="dark"?"dark":"light");}catch(e){document.documentElement.setAttribute("data-arcade-theme","light");}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>מלך הפנדלים · arcAId</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -342,7 +343,7 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
     score: 0, timeLeft: ROUND_SECONDS, streak: 0,
     bestStreak: storedBestStreak, highscore: storedHigh,
     busy: false, dragging: false, muted: false, paused: false,
-    bonus: null, shotBonus: null, over: false, started: false, timerHandle: null, locked: true, doubleSpawnedThisRound: false
+    bonus: null, over: false, started: false, timerHandle: null, locked: true, doubleSpawnedThisRound: false
   };
 
   const arena = document.getElementById('arena');
@@ -599,7 +600,6 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
       if (state.bonus.el) state.bonus.el.remove();
     }
     state.bonus = null;
-    state.shotBonus = null;
   }
   function spawnBonus(forcedType){
     const type = forcedType || pickBonusType();
@@ -624,17 +624,14 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
     state.bonus = { type, xPct, yPct, el, expireTimer, timeAmount };
   }
   // the jackpot double-points bonus is guaranteed exactly once per round, timed to land in the closing stretch
-  function spawnGuaranteedDouble(){
-    if (state.over || state.timeUp) return;
-    // never swap the token while a ball is in the air — the shot was aimed at the old one
-    if (state.busy){ state.doubleScheduleHandle = setTimeout(spawnGuaranteedDouble, 350); return; }
-    clearBonus();
-    spawnBonus(DOUBLE_BONUS);
-  }
   function scheduleGuaranteedDouble(){
     const delayFrac = 0.68 + Math.random()*0.22; // 68%-90% into the round — late, but leaves time to react
     const delayMs = ROUND_SECONDS * 1000 * delayFrac;
-    state.doubleScheduleHandle = setTimeout(spawnGuaranteedDouble, delayMs);
+    state.doubleScheduleHandle = setTimeout(() => {
+      if (state.over || state.timeUp) return;
+      clearBonus();
+      spawnBonus(DOUBLE_BONUS);
+    }, delayMs);
   }
   // ordinary bonuses appear unpredictably — not tied to rounds, can show up mid-turn too
   setInterval(() => {
@@ -752,14 +749,6 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
     keeperXPct = Math.max(16, Math.min(78, keeperXPct));
     keeperYPct = Math.max(4, Math.min(30, keeperYPct));
 
-    // freeze the token this shot was aimed at: while the ball is in the air it must not
-    // expire or be replaced, otherwise a bonus you actually hit is silently lost
-    state.shotBonus = state.bonus;
-    if (state.shotBonus && state.shotBonus.expireTimer){
-      clearTimeout(state.shotBonus.expireTimer);
-      state.shotBonus.expireTimer = null;
-    }
-
     const duration = Math.max(420, 780 - power*3.4);
     const diveDelay = duration * 0.20;
 
@@ -838,19 +827,18 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
       state.streak++;
       if (state.streak > state.bestStreak) state.bestStreak = state.streak;
 
-      // bonus hit-test — against the token as it was when the ball was struck
-      const shotBonus = state.shotBonus || state.bonus;
-      if (shotBonus){
-        const bx = shotBonus.xPct/100*a.width, by = shotBonus.yPct/100*a.height;
+      // bonus hit-test
+      if (state.bonus){
+        const bx = state.bonus.xPct/100*a.width, by = state.bonus.yPct/100*a.height;
         const bdist = Math.hypot(targetX-bx, targetY-by);
-        const hitRadius = a.width*0.095;
+        const hitRadius = a.width*0.085;
         if (bdist < hitRadius){
-          const type = shotBonus.type;
+          const type = state.bonus.type;
           let label = type.label;
           switch(type.key){
             case 'bonusPoints': state.score += 3; break;
             case 'extraTime': {
-              const add = shotBonus.timeAmount || 5;
+              const add = state.bonus.timeAmount || 5;
               state.timeLeft = Math.min(60, state.timeLeft + add);
               renderTimer(); flashTimeGain(add);
               label = 'תוספת זמן +' + add + ' שניות ⏱';
@@ -884,17 +872,6 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
       else if (outcome === 'bar'){ showMessage('פגיעה בקורה! 🥅', 'var(--crimson)'); playPost(); flashWoodwork(); vibrate(30); triggerRecoil(); }
       else if (outcome === 'post'){ showMessage('פגיעה בעמוד! 🥅', 'var(--crimson)'); playPost(); flashWoodwork(); vibrate(30); triggerRecoil(); }
       else { showMessage('החוצה! ❌', 'var(--crimson)'); playMiss(); vibrate(25); }
-    }
-
-    // the shot is over: release the frozen token and give it a fresh lifespan
-    if (state.shotBonus){
-      if (state.bonus === state.shotBonus && !state.bonus.expireTimer){
-        const held = state.bonus;
-        held.expireTimer = setTimeout(() => {
-          if (state.bonus === held) clearBonus();
-        }, 2200 + Math.random()*2000);
-      }
-      state.shotBonus = null;
     }
 
     scoreEl.textContent = state.score;
