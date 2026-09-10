@@ -206,6 +206,16 @@
   }
   @keyframes countPop{ 0%{ transform:scale(0.4); opacity:0.3;} 40%{ transform:scale(1.15); opacity:1;} 100%{ transform:scale(1); opacity:1;} }
   .countdown-num.hidden{ display:none; }
+  /* pause really stops play — and says so */
+  .pause-veil{
+    position:absolute; inset:0; z-index:35; display:flex; align-items:center; justify-content:center;
+    background:rgba(3,7,14,0.62); backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px);
+  }
+  .pause-veil.hidden{ display:none; }
+  .pause-veil span{
+    font-size:20px; font-weight:900; color:var(--gold-2); letter-spacing:1px;
+    text-shadow:0 0 20px rgba(240,168,58,0.5);
+  }
   .start-btn{
     background:linear-gradient(180deg, var(--gold-2), var(--gold)); color:#241503; border:none;
     padding:14px 30px; border-radius:14px; font-family:inherit; font-weight:900; font-size:16px;
@@ -299,6 +309,7 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
       <div id="ballShadow"></div>
       <div id="ball"><span class="ball-panel hex p1"></span><span class="ball-panel hex p2"></span><span class="ball-panel hex p3"></span></div>
       <div id="message">בחר כיוון וגרור מהכדור לבעיטה</div>
+      <div class="pause-veil hidden" id="pauseVeil"><span>⏸ מושהה</span></div>
       <div class="countdown-veil" id="countdownVeil">
         <button class="start-btn" id="startBtn">▶ התחל משחק</button>
         <div class="countdown-num hidden" id="countdownNum">3</div>
@@ -367,6 +378,7 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
   const finalStreakEl = document.getElementById('finalStreak');
   const playAgainBtn = document.getElementById('playAgainBtn');
   const countdownVeil = document.getElementById('countdownVeil');
+  const pauseVeil = document.getElementById('pauseVeil');
   const countdownNum = document.getElementById('countdownNum');
   const startBtn = document.getElementById('startBtn');
   const confettiLayer = document.getElementById('confettiLayer');
@@ -440,10 +452,13 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
   }
 
   function runCountdown(){
+    if (window.Leaderboard) Leaderboard.cancelPending();   // a new round drops the old run's panel
+
     let n = 3;
     countdownNum.textContent = n;
     playCountTick(n);
     const step = () => {
+      if (state.paused) { setTimeout(step, 200); return; }   // paused counts down nothing
       n -= 1;
       if (n > 0){
         countdownNum.textContent = n;
@@ -627,15 +642,17 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
   function scheduleGuaranteedDouble(){
     const delayFrac = 0.68 + Math.random()*0.22; // 68%-90% into the round — late, but leaves time to react
     const delayMs = ROUND_SECONDS * 1000 * delayFrac;
-    state.doubleScheduleHandle = setTimeout(() => {
+    const fire = () => {
       if (state.over || state.timeUp) return;
+      if (state.paused) { state.doubleScheduleHandle = setTimeout(fire, 400); return; }
       clearBonus();
       spawnBonus(DOUBLE_BONUS);
-    }, delayMs);
+    };
+    state.doubleScheduleHandle = setTimeout(fire, delayMs);
   }
   // ordinary bonuses appear unpredictably — not tied to rounds, can show up mid-turn too
   setInterval(() => {
-    if (state.over || state.locked || state.bonus) return;
+    if (state.over || state.locked || state.paused || state.bonus) return;
     if (Math.random() < 0.4) spawnBonus();
   }, 600);
 
@@ -649,7 +666,7 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
   arena.addEventListener('pointercancel', onUp);
 
   function onDown(e){
-    if (state.busy || state.over || state.timeUp || state.locked) return;
+    if (state.busy || state.over || state.timeUp || state.locked || state.paused) return;
     const a = arenaRect();
     const px = e.clientX - a.left, py = e.clientY - a.top;
     const bc = ballCenter();
@@ -699,7 +716,7 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
   }
 
   function executeKick(dx, dy, dist){
-    if (state.over || state.timeUp) return;
+    if (state.over || state.timeUp || state.paused) return;
     startTimerIfNeeded();
     state.busy = true;
     powerFill.style.width = '0%'; powerText.textContent = '0%';
@@ -916,13 +933,36 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
 
     // arcAId global leaderboard — prompts for a name when the run makes the top 10
     if (window.Leaderboard) {
-      setTimeout(function () {
-        Leaderboard.gameOver(state.score, { streak: state.bestStreak });
-      }, 1400);
+      Leaderboard.gameOverIn(1400, state.score, { streak: state.bestStreak });
     }
   }
 
+  function setPaused(on) {
+    state.paused = !!on;
+    if (state.paused) {
+      // drop any drag in progress so releasing the finger cannot fire a shot
+      state.dragging = false;
+      ball.classList.remove('grabbed');
+      powerWrap.classList.remove('active');
+      aimLine.classList.remove('show');
+      powerFill.style.width = '0%'; powerText.textContent = '0%';
+    }
+    if (pauseVeil) pauseVeil.classList.toggle('hidden', !state.paused);
+  }
+
+  // the 30 seconds must not run while the tab is in the background
+  let autoPaused = false;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (!state.paused) { autoPaused = true; setPaused(true); if (window.Arcade) Arcade.setPaused(true); }
+    } else if (autoPaused) {
+      autoPaused = false; setPaused(false); if (window.Arcade) Arcade.setPaused(false);
+    }
+  });
+
   function restartRound() {
+    setPaused(false);
+    if (window.Arcade) Arcade.setPaused(false);   // an explicit restart always resumes
     if (state.timerHandle) clearInterval(state.timerHandle);
     if (state.doubleScheduleHandle) clearTimeout(state.doubleScheduleHandle);
     clearBonus();
@@ -945,9 +985,9 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
   }
   if (window.Arcade) {
     Arcade.controls({
-      onPause:   function () { state.paused = true; },
-      onResume:  function () { state.paused = false; },
-      onRestart: function () { state.paused = false; restartRound(); },
+      onPause:   function () { setPaused(true); },
+      onResume:  function () { setPaused(false); },
+      onRestart: function () { setPaused(false); restartRound(); },
       onMute:    function (m) { state.muted = m; },
       theme: true
     });
