@@ -366,7 +366,7 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
     bestStreak: storedBestStreak, highscore: storedHigh,
     busy: false, dragging: false, muted: false, paused: false,
     bonus: null, over: false, started: false, timerHandle: null, locked: true, doubleSpawnedThisRound: false,
-    rain: [], rainKicks: 0, nextFrenzyAt: FRENZY_STREAK, shotHadRain: false
+    rain: [], rainKicks: 0, shotHadRain: false
   };
 
   const arena = document.getElementById('arena');
@@ -711,6 +711,7 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
       state.rain.push(makeRainToken(type, Math.max(12, Math.min(88, pos[0] + jx)), pos[1] + jy));
     });
     state.rainKicks = FRENZY_KICKS;
+    state.shotHadRain = false;   // a fresh wall always gets its full three kicks, even if it landed mid-shot
 
     const flash = document.createElement('div');
     flash.className = 'frenzy-flash';
@@ -975,7 +976,7 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
             else if (t.type.key === 'doublePoints') doubles++;
           });
           state.score += points;
-          if (doubles) state.score = state.score * 2;   // at most one doubling per kick, however many ×2 it swept
+          for (let i = 0; i < doubles; i++) state.score = state.score * 2;   // sweeping two ×2 really does double twice
           if (seconds > 0){
             state.timeLeft = Math.min(60, state.timeLeft + seconds);
             renderTimer(); flashTimeGain(seconds);
@@ -983,15 +984,14 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
           const parts = [];
           if (points) parts.push('🪙+' + points);
           if (seconds) parts.push('⏱+' + seconds + 'ש');
-          if (doubles) parts.push('×2 🌟');
+          if (doubles) parts.push((doubles > 1 ? '×' + Math.pow(2, doubles) : '×2') + ' 🌟');
           bonusSuffix += ' + ' + parts.join(' ');
           playBonusGood(); vibrate([10,30,10,30]);
         }
       }
 
-      // ten in a row fills the goal with bonuses for the next few kicks
-      if (state.streak >= state.nextFrenzyAt){
-        state.nextFrenzyAt += FRENZY_STREAK;
+      // every ten in a row fills the goal with bonuses — a miss resets the streak, so the next ten earn it again
+      if (state.streak > 0 && state.streak % FRENZY_STREAK === 0){
         startFrenzy();
         showMessage('רצף ' + state.streak + '! השער מלא בבונוסים ⚡', 'var(--gold-2)');
       }
@@ -1094,7 +1094,6 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
   function restartRound() {
     setPaused(false);
     clearRain();
-    state.nextFrenzyAt = FRENZY_STREAK;
     if (window.Arcade) Arcade.setPaused(false);   // an explicit restart always resumes
     if (state.timerHandle) clearInterval(state.timerHandle);
     if (state.doubleScheduleHandle) clearTimeout(state.doubleScheduleHandle);
