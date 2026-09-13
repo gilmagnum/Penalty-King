@@ -161,6 +161,13 @@
   @keyframes jackpotBlink{ 0%,100%{ filter:brightness(1);} 50%{ filter:brightness(1.7);} }
   .bonus-token.bad{ background:radial-gradient(circle at 35% 30%, #3a1414, #7a1f1f); color:#ffdede; box-shadow:0 0 14px rgba(214,69,69,0.65); border:1px solid rgba(255,255,255,0.15); }
   @keyframes bonusPulse{ 0%,100%{ transform:translate(-50%,-50%) scale(1);} 50%{ transform:translate(-50%,-50%) scale(1.14);} }
+  /* streak frenzy: the goal fills up with collectable bonuses */
+  .bonus-token.rain{ animation:rainIn .45s cubic-bezier(.2,1.4,.4,1) backwards, bonusPulse 1.4s ease-in-out infinite .45s; }
+  @keyframes rainIn{ from{ opacity:0; transform:translate(-50%,-140%) scale(.5);} to{ opacity:1; transform:translate(-50%,-50%) scale(1);} }
+  .frenzy-flash{ position:absolute; inset:0; z-index:12; pointer-events:none; border-radius:18px;
+                 background:radial-gradient(circle at 50% 26%, rgba(255,214,107,0.35), transparent 62%);
+                 animation:frenzyFlash .9s ease-out forwards; }
+  @keyframes frenzyFlash{ 0%{ opacity:0;} 25%{ opacity:1;} 100%{ opacity:0;} }
 
   #message{ position:absolute; top:56%; left:0; right:0; text-align:center; font-size:19px; font-weight:900; text-shadow:0 3px 10px rgba(0,0,0,0.85); z-index:20; opacity:0; transition:opacity .25s ease, transform .25s ease; transform:translateY(6px) scale(0.96); padding:0 6%; }
   #message.show{ opacity:1; transform:translateY(0) scale(1); }
@@ -350,11 +357,14 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
     storedBestStreak = parseInt(localStorage.getItem('penalty_night_beststreak') || '0', 10) || 0;
   } catch(e) {}
 
+  const FRENZY_STREAK = 10;   // a streak of this many goals fills the goal with bonuses
+  const FRENZY_KICKS  = 3;    // ...collectable over the next three kicks
   const state = {
     score: 0, timeLeft: ROUND_SECONDS, streak: 0,
     bestStreak: storedBestStreak, highscore: storedHigh,
     busy: false, dragging: false, muted: false, paused: false,
-    bonus: null, over: false, started: false, timerHandle: null, locked: true, doubleSpawnedThisRound: false
+    bonus: null, over: false, started: false, timerHandle: null, locked: true, doubleSpawnedThisRound: false,
+    rain: [], rainKicks: 0, nextFrenzyAt: FRENZY_STREAK, shotHadRain: false
   };
 
   const arena = document.getElementById('arena');
@@ -493,6 +503,12 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
   }
 
   function updateStreakBanner(){
+    if (state.rain.length && state.rainKicks > 0){
+      streakBanner.textContent = '⚡ בונוסים בשער — עוד ' + state.rainKicks +
+        (state.rainKicks === 1 ? ' בעיטה' : ' בעיטות');
+      streakBanner.classList.add('show');
+      return;
+    }
     if (state.streak >= 2){
       let label = 'רצף ' + state.streak;
       if (state.streak >= 8) label += ' 🔥🔥';
@@ -501,6 +517,7 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
       streakBanner.classList.add('show');
     } else {
       streakBanner.classList.remove('show');
+      streakBanner.textContent = '';
     }
   }
 
@@ -638,13 +655,70 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
     }, lifespan);
     state.bonus = { type, xPct, yPct, el, expireTimer, timeAmount };
   }
+  /* ---------- streak frenzy: ten in a row fills the goal with bonuses ---------- */
+  function clearRain(){
+    state.rain.forEach(t => { if (t.el) t.el.remove(); });
+    state.rain = [];
+    state.rainKicks = 0;
+    updateStreakBanner();
+  }
+
+  function makeRainToken(type, xPct, yPct){
+    const timeAmount = type.key === 'extraTime' ? (Math.random() < 0.5 ? 5 : 10) : null;
+    const el = document.createElement('div');
+    el.className = 'bonus-token rain good' +
+      (type.key === 'extraTime' ? ' time' : '') +
+      (type.key === 'doublePoints' ? ' jackpot' : '');
+    let amountText = '';
+    if (type.key === 'extraTime') amountText = '+' + timeAmount + 'ש';
+    else if (type.key === 'bonusPoints') amountText = '+3';
+    else if (type.key === 'doublePoints') amountText = '×2';
+    el.innerHTML = '<span class="b-icon">' + type.icon + '</span>' +
+      (amountText ? '<span class="b-amt">' + amountText + '</span>' : '');
+    el.style.left = xPct + '%';
+    el.style.top = yPct + '%';
+    el.style.animationDelay = (Math.random() * 0.22).toFixed(2) + 's, ' +
+                              (0.45 + Math.random() * 0.22).toFixed(2) + 's';
+    arena.appendChild(el);
+    return { type, xPct, yPct, el, timeAmount };
+  }
+
+  function startFrenzy(){
+    clearBonus();
+    clearRain();
+    const good = [
+      { key:'bonusPoints', icon:'🪙', good:true, label:'🪙+3' },
+      { key:'extraTime',   icon:'⏱',  good:true, label:'' }
+    ];
+    // four across the top of the goal, three below — one of them is always the ×2
+    const slots = [
+      [24,16],[42,16],[58,16],[76,16],
+      [32,38],[50,38],[68,38]
+    ];
+    const jackpotAt = Math.floor(Math.random() * slots.length);
+    slots.forEach((pos, i) => {
+      const type = i === jackpotAt ? DOUBLE_BONUS : good[Math.random() < 0.55 ? 0 : 1];
+      const jitter = (Math.random() - 0.5) * 4;
+      state.rain.push(makeRainToken(type, pos[0] + jitter, pos[1] + jitter));
+    });
+    state.rainKicks = FRENZY_KICKS;
+
+    const flash = document.createElement('div');
+    flash.className = 'frenzy-flash';
+    arena.appendChild(flash);
+    setTimeout(() => flash.remove(), 1000);
+
+    playBonusGood(); vibrate([15,40,15,40,15]);
+    updateStreakBanner();
+  }
+
   // the jackpot double-points bonus is guaranteed exactly once per round, timed to land in the closing stretch
   function scheduleGuaranteedDouble(){
     const delayFrac = 0.68 + Math.random()*0.22; // 68%-90% into the round — late, but leaves time to react
     const delayMs = ROUND_SECONDS * 1000 * delayFrac;
     const fire = () => {
       if (state.over || state.timeUp) return;
-      if (state.paused) { state.doubleScheduleHandle = setTimeout(fire, 400); return; }
+      if (state.paused || state.rain.length) { state.doubleScheduleHandle = setTimeout(fire, 500); return; }
       clearBonus();
       spawnBonus(DOUBLE_BONUS);
     };
@@ -652,7 +726,7 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
   }
   // ordinary bonuses appear unpredictably — not tied to rounds, can show up mid-turn too
   setInterval(() => {
-    if (state.over || state.locked || state.paused || state.bonus) return;
+    if (state.over || state.locked || state.paused || state.bonus || state.rain.length) return;
     if (Math.random() < 0.4) spawnBonus();
   }, 600);
 
@@ -766,6 +840,8 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
     keeperXPct = Math.max(16, Math.min(78, keeperXPct));
     keeperYPct = Math.max(4, Math.min(30, keeperYPct));
 
+    state.shotHadRain = state.rain.length > 0;   // this kick spends one of the frenzy kicks
+
     const duration = Math.max(420, 780 - power*3.4);
     const diveDelay = duration * 0.20;
 
@@ -872,6 +948,45 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
         }
       }
 
+      // frenzy tokens: one kick can sweep several of them
+      if (state.rain.length){
+        const hitRadius = a.width*0.095;
+        const taken = [];
+        state.rain = state.rain.filter(t => {
+          const bx = t.xPct/100*a.width, by = t.yPct/100*a.height;
+          if (Math.hypot(targetX-bx, targetY-by) < hitRadius){ taken.push(t); return false; }
+          return true;
+        });
+        if (taken.length){
+          let points = 0, seconds = 0, doubles = 0;
+          taken.forEach(t => {
+            if (t.el) t.el.remove();
+            if (t.type.key === 'bonusPoints') points += 3;
+            else if (t.type.key === 'extraTime') seconds += (t.timeAmount || 5);
+            else if (t.type.key === 'doublePoints') doubles++;
+          });
+          state.score += points;
+          for (let i = 0; i < doubles; i++) state.score = state.score * 2;
+          if (seconds > 0){
+            state.timeLeft = Math.min(60, state.timeLeft + seconds);
+            renderTimer(); flashTimeGain(seconds);
+          }
+          const parts = [];
+          if (points) parts.push('🪙+' + points);
+          if (seconds) parts.push('⏱+' + seconds + 'ש');
+          if (doubles) parts.push('×2 🌟');
+          bonusSuffix += ' + ' + parts.join(' ');
+          playBonusGood(); vibrate([10,30,10,30]);
+        }
+      }
+
+      // ten in a row fills the goal with bonuses for the next few kicks
+      if (state.streak >= state.nextFrenzyAt){
+        state.nextFrenzyAt += FRENZY_STREAK;
+        startFrenzy();
+        showMessage('רצף ' + state.streak + '! השער מלא בבונוסים ⚡', 'var(--gold-2)');
+      }
+
       if (state.score > state.highscore){
         state.highscore = state.score;
         try { localStorage.setItem('penalty_night_highscore', state.highscore); } catch(e){}
@@ -889,6 +1004,12 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
       else if (outcome === 'bar'){ showMessage('פגיעה בקורה! 🥅', 'var(--crimson)'); playPost(); flashWoodwork(); vibrate(30); triggerRecoil(); }
       else if (outcome === 'post'){ showMessage('פגיעה בעמוד! 🥅', 'var(--crimson)'); playPost(); flashWoodwork(); vibrate(30); triggerRecoil(); }
       else { showMessage('החוצה! ❌', 'var(--crimson)'); playMiss(); vibrate(25); }
+    }
+
+    if (state.shotHadRain){
+      state.shotHadRain = false;
+      state.rainKicks--;
+      if (state.rainKicks <= 0) clearRain();
     }
 
     scoreEl.textContent = state.score;
@@ -920,6 +1041,7 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
 
   function openGameOver(){
     state.over = true;
+    clearRain();
     if (state.timerHandle) clearInterval(state.timerHandle);
     if (state.doubleScheduleHandle) clearTimeout(state.doubleScheduleHandle);
     clearBonus();
@@ -962,6 +1084,8 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
 
   function restartRound() {
     setPaused(false);
+    clearRain();
+    state.nextFrenzyAt = FRENZY_STREAK;
     if (window.Arcade) Arcade.setPaused(false);   // an explicit restart always resumes
     if (state.timerHandle) clearInterval(state.timerHandle);
     if (state.doubleScheduleHandle) clearTimeout(state.doubleScheduleHandle);
