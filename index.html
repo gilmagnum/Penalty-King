@@ -162,7 +162,9 @@
   .bonus-token.bad{ background:radial-gradient(circle at 35% 30%, #3a1414, #7a1f1f); color:#ffdede; box-shadow:0 0 14px rgba(214,69,69,0.65); border:1px solid rgba(255,255,255,0.15); }
   @keyframes bonusPulse{ 0%,100%{ transform:translate(-50%,-50%) scale(1);} 50%{ transform:translate(-50%,-50%) scale(1.14);} }
   /* streak frenzy: the goal fills up with collectable bonuses */
-  .bonus-token.rain{ animation:rainIn .45s cubic-bezier(.2,1.4,.4,1) backwards, bonusPulse 1.4s ease-in-out infinite .45s; }
+  .bonus-token.rain{ width:32px; height:32px; animation:rainIn .45s cubic-bezier(.2,1.4,.4,1) backwards, bonusPulse 1.4s ease-in-out infinite .45s; }
+  .bonus-token.rain .b-icon{ font-size:11px; }
+  .bonus-token.rain .b-amt{ font-size:10px; }
   @keyframes rainIn{ from{ opacity:0; transform:translate(-50%,-140%) scale(.5);} to{ opacity:1; transform:translate(-50%,-50%) scale(1);} }
   .frenzy-flash{ position:absolute; inset:0; z-index:12; pointer-events:none; border-radius:18px;
                  background:radial-gradient(circle at 50% 26%, rgba(255,214,107,0.35), transparent 62%);
@@ -690,16 +692,23 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
       { key:'bonusPoints', icon:'🪙', good:true, label:'🪙+3' },
       { key:'extraTime',   icon:'⏱',  good:true, label:'' }
     ];
-    // four across the top of the goal, three below — one of them is always the ×2
-    const slots = [
-      [24,16],[42,16],[58,16],[76,16],
-      [32,38],[50,38],[68,38]
-    ];
-    const jackpotAt = Math.floor(Math.random() * slots.length);
+    // a packed grid over the whole goal mouth, with a couple of ×2 jackpots hidden inside it
+    const COLS = 7, ROWS = 5;
+    const X0 = 13, X1 = 87, Y0 = 10, Y1 = 48;
+    const slots = [];
+    for (let r = 0; r < ROWS; r++){
+      for (let c = 0; c < COLS; c++){
+        const stagger = (r % 2 ? 1 : -1) * 1.8;                    // brick pattern — reads as a solid wall
+        slots.push([X0 + (X1 - X0) * (c / (COLS - 1)) + stagger,
+                    Y0 + (Y1 - Y0) * (r / (ROWS - 1))]);
+      }
+    }
+    const jackpots = new Set();
+    while (jackpots.size < 2) jackpots.add(Math.floor(Math.random() * slots.length));
     slots.forEach((pos, i) => {
-      const type = i === jackpotAt ? DOUBLE_BONUS : good[Math.random() < 0.55 ? 0 : 1];
-      const jitter = (Math.random() - 0.5) * 4;
-      state.rain.push(makeRainToken(type, pos[0] + jitter, pos[1] + jitter));
+      const type = jackpots.has(i) ? DOUBLE_BONUS : good[Math.random() < 0.68 ? 0 : 1];
+      const jx = (Math.random() - 0.5) * 2.2, jy = (Math.random() - 0.5) * 2.2;
+      state.rain.push(makeRainToken(type, Math.max(12, Math.min(88, pos[0] + jx)), pos[1] + jy));
     });
     state.rainKicks = FRENZY_KICKS;
 
@@ -950,7 +959,7 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
 
       // frenzy tokens: one kick can sweep several of them
       if (state.rain.length){
-        const hitRadius = a.width*0.095;
+        const hitRadius = a.width*0.15;   // the ball sweeps a whole patch out of the packed goal
         const taken = [];
         state.rain = state.rain.filter(t => {
           const bx = t.xPct/100*a.width, by = t.yPct/100*a.height;
@@ -966,7 +975,7 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
             else if (t.type.key === 'doublePoints') doubles++;
           });
           state.score += points;
-          for (let i = 0; i < doubles; i++) state.score = state.score * 2;
+          if (doubles) state.score = state.score * 2;   // at most one doubling per kick, however many ×2 it swept
           if (seconds > 0){
             state.timeLeft = Math.min(60, state.timeLeft + seconds);
             renderTimer(); flashTimeGain(seconds);
