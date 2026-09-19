@@ -359,8 +359,8 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
     storedBestStreak = parseInt(localStorage.getItem('penalty_night_beststreak') || '0', 10) || 0;
   } catch(e) {}
 
-  const FRENZY_STREAK = 10;   // a streak of this many goals fills the goal with bonuses
-  const FRENZY_KICKS  = 3;    // ...collectable over the next three kicks
+  const FRENZY_STREAK = 5;    // a streak of this many goals fills the goal with bonuses
+  const FRENZY_KICKS  = 1;    // ...collectable on the very next kick only
   const state = {
     score: 0, timeLeft: ROUND_SECONDS, streak: 0,
     bestStreak: storedBestStreak, highscore: storedHigh,
@@ -506,8 +506,9 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
 
   function updateStreakBanner(){
     if (state.rain.length && state.rainKicks > 0){
-      streakBanner.textContent = '⚡ בונוסים בשער — עוד ' + state.rainKicks +
-        (state.rainKicks === 1 ? ' בעיטה' : ' בעיטות');
+      streakBanner.textContent = state.rainKicks === 1
+        ? '⚡ בונוסים בשער — הבעיטה הבאה'
+        : '⚡ בונוסים בשער — עוד ' + state.rainKicks + ' בעיטות';
       streakBanner.classList.add('show');
       return;
     }
@@ -657,7 +658,7 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
     }, lifespan);
     state.bonus = { type, xPct, yPct, el, expireTimer, timeAmount };
   }
-  /* ---------- streak frenzy: ten in a row fills the goal with bonuses ---------- */
+  /* ---------- streak frenzy: five in a row fills the goal with bonuses ---------- */
   function clearRain(){
     state.rain.forEach(t => { if (t.el) t.el.remove(); });
     state.rain = [];
@@ -711,7 +712,7 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
       state.rain.push(makeRainToken(type, Math.max(12, Math.min(88, pos[0] + jx)), pos[1] + jy));
     });
     state.rainKicks = FRENZY_KICKS;
-    state.shotHadRain = false;   // a fresh wall always gets its full three kicks, even if it landed mid-shot
+    state.shotHadRain = false;   // a fresh wall always gets its own kick, even if it landed mid-shot
 
     const flash = document.createElement('div');
     flash.className = 'frenzy-flash';
@@ -990,7 +991,7 @@ html[data-arcade-theme="light"] .modal-card{ background:linear-gradient(180deg,#
         }
       }
 
-      // every ten in a row fills the goal with bonuses — a miss resets the streak, so the next ten earn it again
+      // every five in a row fills the goal with bonuses — a miss resets the streak, so the next five earn it again
       if (state.streak > 0 && state.streak % FRENZY_STREAK === 0){
         startFrenzy();
         showMessage('רצף ' + state.streak + '! השער מלא בבונוסים ⚡', 'var(--gold-2)');
